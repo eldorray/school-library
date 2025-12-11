@@ -15,6 +15,18 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
+    /*
+    |--------------------------------------------------------------------------
+    | Role Constants
+    |--------------------------------------------------------------------------
+    | Konstanta untuk role user agar mudah digunakan di seluruh aplikasi.
+    | Contoh penggunaan: User::ROLE_ADMIN
+    */
+    public const ROLE_ADMIN = 'admin';
+    public const ROLE_LIBRARIAN = 'librarian';
+    public const ROLE_TEACHER = 'teacher';
+    public const ROLE_STUDENT = 'student';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -51,7 +63,8 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the user's initials
+     * Ambil inisial dari nama user.
+     * Contoh: "John Doe" -> "JD"
      */
     public function initials(): string
     {
@@ -62,7 +75,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the member profile associated with this user.
+     * Relasi ke profil member (untuk student/teacher).
      */
     public function member(): HasOne
     {
@@ -70,7 +83,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the login logs for this user.
+     * Relasi ke log login user.
      */
     public function loginLogs(): HasMany
     {
@@ -78,47 +91,47 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user is admin
+     * Cek apakah user adalah Admin.
      */
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->role === self::ROLE_ADMIN;
     }
 
     /**
-     * Check if user is librarian
+     * Cek apakah user adalah Pustakawan.
      */
     public function isLibrarian(): bool
     {
-        return $this->role === 'librarian';
+        return $this->role === self::ROLE_LIBRARIAN;
     }
 
     /**
-     * Check if user is teacher
+     * Cek apakah user adalah Guru.
      */
     public function isTeacher(): bool
     {
-        return $this->role === 'teacher';
+        return $this->role === self::ROLE_TEACHER;
     }
 
     /**
-     * Check if user is student
+     * Cek apakah user adalah Siswa.
      */
     public function isStudent(): bool
     {
-        return $this->role === 'student';
+        return $this->role === self::ROLE_STUDENT;
     }
 
     /**
-     * Get the dashboard route for this user's role.
+     * Dapatkan route dashboard berdasarkan role user.
      */
     public function dashboardRoute(): string
     {
         return match($this->role) {
-            'admin' => 'admin.dashboard',
-            'librarian' => 'librarian.dashboard',
-            'teacher' => 'teacher.dashboard',
-            'student' => 'student.dashboard',
+            self::ROLE_ADMIN => 'admin.dashboard',
+            self::ROLE_LIBRARIAN => 'librarian.dashboard',
+            self::ROLE_TEACHER => 'teacher.dashboard',
+            self::ROLE_STUDENT => 'student.dashboard',
             default => 'dashboard',
         };
     }

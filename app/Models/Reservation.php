@@ -11,6 +11,16 @@ class Reservation extends Model
 {
     use HasFactory;
 
+    /*
+    |--------------------------------------------------------------------------
+    | Status Constants
+    |--------------------------------------------------------------------------
+    */
+    public const STATUS_PENDING = 'pending';       // Menunggu ketersediaan
+    public const STATUS_FULFILLED = 'fulfilled';   // Sudah diambil
+    public const STATUS_CANCELLED = 'cancelled';   // Dibatalkan
+    public const STATUS_EXPIRED = 'expired';       // Kedaluwarsa
+
     protected $fillable = [
         'member_id',
         'book_id',
@@ -24,8 +34,14 @@ class Reservation extends Model
         'expiry_date' => 'date',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Get the member who made this reservation.
+     * Member yang melakukan reservasi.
      */
     public function member(): BelongsTo
     {
@@ -33,42 +49,49 @@ class Reservation extends Model
     }
 
     /**
-     * Get the reserved book.
+     * Buku yang direservasi.
      */
     public function book(): BelongsTo
     {
         return $this->belongsTo(Book::class);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Status Checkers & Actions
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Check if reservation is expired.
+     * Cek apakah reservasi sudah kedaluwarsa.
      */
     public function isExpired(): bool
     {
-        return $this->expiry_date->lt(Carbon::today()) && $this->status === 'pending';
+        return $this->expiry_date->lt(Carbon::today()) 
+            && $this->status === self::STATUS_PENDING;
     }
 
     /**
-     * Mark as fulfilled.
+     * Tandai reservasi sebagai sudah diambil.
      */
     public function fulfill(): void
     {
-        $this->update(['status' => 'fulfilled']);
+        $this->update(['status' => self::STATUS_FULFILLED]);
     }
 
     /**
-     * Cancel reservation.
+     * Batalkan reservasi.
      */
     public function cancel(): void
     {
-        $this->update(['status' => 'cancelled']);
+        $this->update(['status' => self::STATUS_CANCELLED]);
     }
 
     /**
-     * Expire reservation.
+     * Tandai reservasi sebagai kedaluwarsa.
      */
     public function expire(): void
     {
-        $this->update(['status' => 'expired']);
+        $this->update(['status' => self::STATUS_EXPIRED]);
     }
 }

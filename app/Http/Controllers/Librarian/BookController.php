@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Librarian;
 use App\Http\Controllers\Controller;
 use App\Imports\BooksImport;
 use App\Models\Book;
+use App\Models\Borrowing;
 use App\Models\Category;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -128,9 +129,13 @@ class BookController extends Controller
             ->with('status', 'Buku berhasil diperbarui.');
     }
 
+    /**
+     * Hapus buku dari database.
+     * Tidak bisa menghapus buku yang sedang dipinjam.
+     */
     public function destroy(Book $book): RedirectResponse
     {
-        if ($book->borrowings()->where('status', 'borrowed')->exists()) {
+        if ($book->borrowings()->where('status', Borrowing::STATUS_BORROWED)->exists()) {
             return redirect()->route('librarian.books.index')
                 ->with('error', 'Tidak dapat menghapus buku yang sedang dipinjam.');
         }
@@ -161,7 +166,7 @@ class BookController extends Controller
         foreach ($validated['ids'] as $id) {
             $book = Book::find($id);
             
-            if ($book && $book->borrowings()->where('status', 'borrowed')->exists()) {
+            if ($book && $book->borrowings()->where('status', Borrowing::STATUS_BORROWED)->exists()) {
                 $skipped++;
                 continue;
             }

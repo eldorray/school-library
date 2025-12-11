@@ -31,8 +31,14 @@ class Book extends Model
         'available_copies' => 'integer',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Get the category of this book.
+     * Kategori buku ini.
      */
     public function category(): BelongsTo
     {
@@ -40,7 +46,7 @@ class Book extends Model
     }
 
     /**
-     * Get all borrowings of this book.
+     * Semua peminjaman buku ini.
      */
     public function borrowings(): HasMany
     {
@@ -48,15 +54,21 @@ class Book extends Model
     }
 
     /**
-     * Get all reservations of this book.
+     * Semua reservasi buku ini.
      */
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Availability Helpers
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Check if book is available for borrowing.
+     * Cek apakah buku tersedia untuk dipinjam.
      */
     public function isAvailable(): bool
     {
@@ -64,7 +76,7 @@ class Book extends Model
     }
 
     /**
-     * Decrease available copies when book is borrowed.
+     * Kurangi jumlah eksemplar tersedia ketika dipinjam.
      */
     public function decrementAvailable(): void
     {
@@ -74,7 +86,7 @@ class Book extends Model
     }
 
     /**
-     * Increase available copies when book is returned.
+     * Tambah jumlah eksemplar tersedia ketika dikembalikan.
      */
     public function incrementAvailable(): void
     {
@@ -83,8 +95,14 @@ class Book extends Model
         }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | PDF & Read Access
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Check if book has a PDF file.
+     * Cek apakah buku memiliki file PDF.
      */
     public function hasPdf(): bool
     {
@@ -92,22 +110,23 @@ class Book extends Model
     }
 
     /**
-     * Check if user can read this book online.
-     * Admin, Librarian, Teacher can read directly.
-     * Students must have an active borrowing.
+     * Cek apakah user boleh membaca buku ini online.
+     * 
+     * - Admin, Pustakawan, Guru: bisa langsung baca
+     * - Siswa: harus punya peminjaman aktif
      */
     public function canRead(User $user): bool
     {
-        // Admin, librarian, and teacher can read any book
+        // Admin, pustakawan, dan guru bisa baca semua buku
         if ($user->isAdmin() || $user->isLibrarian() || $user->isTeacher()) {
             return true;
         }
 
-        // Students must have an active borrowing
+        // Siswa harus punya peminjaman aktif
         if ($user->isStudent() && $user->member) {
             return $this->borrowings()
                 ->where('member_id', $user->member->id)
-                ->where('status', 'borrowed')
+                ->where('status', Borrowing::STATUS_BORROWED)
                 ->exists();
         }
 

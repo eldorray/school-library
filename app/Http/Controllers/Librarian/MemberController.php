@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Librarian;
 
 use App\Http\Controllers\Controller;
+use App\Models\Borrowing;
 use App\Models\Member;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -129,9 +130,13 @@ class MemberController extends Controller
             ->with('status', 'Data anggota berhasil diperbarui.');
     }
 
+    /**
+     * Hapus anggota dari database.
+     * Tidak bisa menghapus anggota yang masih punya peminjaman aktif.
+     */
     public function destroy(Member $member): RedirectResponse
     {
-        if ($member->borrowings()->where('status', 'borrowed')->exists()) {
+        if ($member->borrowings()->where('status', Borrowing::STATUS_BORROWED)->exists()) {
             return redirect()->route('librarian.members.index')
                 ->with('error', 'Anggota masih memiliki peminjaman aktif.');
         }
@@ -158,7 +163,7 @@ class MemberController extends Controller
         foreach ($validated['ids'] as $id) {
             $member = Member::find($id);
             
-            if ($member && $member->borrowings()->where('status', 'borrowed')->exists()) {
+            if ($member && $member->borrowings()->where('status', Borrowing::STATUS_BORROWED)->exists()) {
                 $skipped++;
                 continue;
             }

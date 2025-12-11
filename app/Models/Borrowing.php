@@ -12,6 +12,26 @@ class Borrowing extends Model
 {
     use HasFactory;
 
+    /*
+    |--------------------------------------------------------------------------
+    | Status Constants
+    |--------------------------------------------------------------------------
+    | Status peminjaman buku.
+    */
+    public const STATUS_PENDING = 'pending';     // Menunggu persetujuan
+    public const STATUS_BORROWED = 'borrowed';   // Sedang dipinjam
+    public const STATUS_RETURNED = 'returned';   // Sudah dikembalikan
+    public const STATUS_REJECTED = 'rejected';   // Ditolak
+
+    /*
+    |--------------------------------------------------------------------------
+    | Config Constants
+    |--------------------------------------------------------------------------
+    | Konfigurasi peminjaman.
+    */
+    public const FINE_PER_DAY = 1000;        // Denda Rp 1.000 per hari
+    public const DEFAULT_LOAN_DAYS = 14;     // Lama pinjam default 14 hari
+
     protected $fillable = [
         'member_id',
         'book_id',
@@ -31,8 +51,14 @@ class Borrowing extends Model
         'return_date' => 'date',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Get the member who borrowed.
+     * Member yang meminjam buku.
      */
     public function member(): BelongsTo
     {
@@ -40,7 +66,7 @@ class Borrowing extends Model
     }
 
     /**
-     * Get the borrowed book.
+     * Buku yang dipinjam.
      */
     public function book(): BelongsTo
     {
@@ -48,7 +74,7 @@ class Borrowing extends Model
     }
 
     /**
-     * Get the librarian who issued the book.
+     * Pustakawan yang menyetujui peminjaman.
      */
     public function issuedBy(): BelongsTo
     {
@@ -56,7 +82,7 @@ class Borrowing extends Model
     }
 
     /**
-     * Get the librarian who processed the return.
+     * Pustakawan yang memproses pengembalian.
      */
     public function returnedTo(): BelongsTo
     {
@@ -64,50 +90,56 @@ class Borrowing extends Model
     }
 
     /**
-     * Get the fine for this borrowing if any.
+     * Denda dari peminjaman ini (jika ada).
      */
     public function fine(): HasOne
     {
         return $this->hasOne(Fine::class);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Status Checkers
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Check if borrowing is pending approval.
+     * Cek apakah peminjaman masih menunggu persetujuan.
      */
     public function isPending(): bool
     {
-        return $this->status === 'pending';
+        return $this->status === self::STATUS_PENDING;
     }
 
     /**
-     * Check if borrowing is approved/active.
+     * Cek apakah peminjaman sudah disetujui dan aktif.
      */
     public function isApproved(): bool
     {
-        return $this->status === 'borrowed';
+        return $this->status === self::STATUS_BORROWED;
     }
 
     /**
-     * Check if borrowing was rejected.
+     * Cek apakah peminjaman ditolak.
      */
     public function isRejected(): bool
     {
-        return $this->status === 'rejected';
+        return $this->status === self::STATUS_REJECTED;
     }
 
     /**
-     * Check if borrowing is overdue.
+     * Cek apakah peminjaman sudah melewati batas waktu.
      */
     public function isOverdue(): bool
     {
-        if ($this->status !== 'borrowed') {
+        if ($this->status !== self::STATUS_BORROWED) {
             return false;
         }
         return $this->due_date && $this->due_date->lt(Carbon::today());
     }
 
     /**
-     * Get days overdue.
+     * Hitung jumlah hari keterlambatan.
      */
     public function daysOverdue(): int
     {
@@ -117,56 +149,70 @@ class Borrowing extends Model
         return $this->due_date->diffInDays(Carbon::today());
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Actions
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Approve the borrowing request.
+     * Setujui permintaan peminjaman.
+     *
+     * @param int $librarianId ID pustakawan yang menyetujui
+     * @param int $loanDays Lama pinjam dalam hari (default: 14)
      */
-    public function approve(int $librarianId, int $loanDays = 14): void
+    public function approve(int $librarianId, int $loanDays = self::DEFAULT_LOAN_DAYS): void
     {
         $this->update([
             'issued_by' => $librarianId,
             'borrow_date' => Carbon::today(),
             'due_date' => Carbon::today()->addDays($loanDays),
-            'status' => 'borrowed',
+            'status' => self::STATUS_BORROWED,
         ]);
 
         $this->book->decrementAvailable();
     }
 
     /**
-     * Reject the borrowing request.
+     * Tolak permintaan peminjaman.
+     *
+     * @param string|null $reason Alasan penolakan
      */
-    public function reject(string $reason = null): void
+    public function reject(?string $reason = null): void
     {
         $this->update([
-            'status' => 'rejected',
+            'status' => self::STATUS_REJECTED,
             'rejection_reason' => $reason,
         ]);
     }
 
     /**
-     * Process return.
+     * Proses pengembalian buku.
+     * Akan membuat denda otomatis jika terlambat.
+     *
+     * @param int $librarianId ID pustakawan yang memproses
      */
     public function processReturn(int $librarianId): void
     {
         $this->update([
             'return_date' => Carbon::today(),
             'returned_to' => $librarianId,
-            'status' => 'returned',
+            'status' => self::STATUS_RETURNED,
         ]);
 
         $this->book->incrementAvailable();
 
-        // Create fine if overdue
+        // Buat denda jika terlambat
         if ($this->due_date->lt($this->return_date)) {
             $daysOverdue = $this->due_date->diffInDays($this->return_date);
-            $finePerDay = 1000; // Rp 1.000 per hari
 
             Fine::create([
                 'borrowing_id' => $this->id,
                 'days_overdue' => $daysOverdue,
-                'amount' => $daysOverdue * $finePerDay,
+                'amount' => $daysOverdue * self::FINE_PER_DAY,
             ]);
         }
     }
 }
+
 

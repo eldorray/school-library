@@ -12,10 +12,18 @@ use Illuminate\View\View;
 
 class BorrowingController extends Controller
 {
+    /**
+     * Tampilkan daftar semua peminjaman.
+     * 
+     * Filter yang tersedia:
+     * - search: Cari berdasarkan nama peminjam atau judul buku
+     * - status: Filter berdasarkan status peminjaman
+     */
     public function index(Request $request): View
     {
         $query = Borrowing::with(['member.user', 'book', 'issuedBy']);
 
+        // Filter pencarian
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -24,18 +32,22 @@ class BorrowingController extends Controller
             });
         }
 
+        // Filter status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
         $borrowings = $query->latest()->paginate(15)->withQueryString();
 
-        // Count pending requests for notification
-        $pendingCount = Borrowing::where('status', 'pending')->count();
+        // Hitung permintaan pending untuk notifikasi
+        $pendingCount = Borrowing::where('status', Borrowing::STATUS_PENDING)->count();
 
         return view('librarian.borrowings.index', compact('borrowings', 'pendingCount'));
     }
 
+    /**
+     * Tampilkan form untuk membuat peminjaman baru.
+     */
     public function create(): View
     {
         $members = Member::with('user')->where('is_active', true)->get();
@@ -44,6 +56,10 @@ class BorrowingController extends Controller
         return view('librarian.borrowings.create', compact('members', 'books'));
     }
 
+    /**
+     * Simpan peminjaman baru.
+     * Digunakan ketika pustakawan langsung meminjamkan buku ke anggota.
+     */
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -56,43 +72,49 @@ class BorrowingController extends Controller
         $member = Member::findOrFail($validated['member_id']);
         $book = Book::findOrFail($validated['book_id']);
 
-        // Check if member can borrow
+        // Cek apakah anggota bisa meminjam
         if (!$member->canBorrow()) {
             return back()->with('error', 'Anggota telah mencapai batas peminjaman atau tidak aktif.');
         }
 
-        // Check if book is available
+        // Cek ketersediaan buku
         if (!$book->isAvailable()) {
             return back()->with('error', 'Buku tidak tersedia.');
         }
 
-        // Create borrowing
+        // Buat peminjaman
         Borrowing::create([
             'member_id' => $validated['member_id'],
             'book_id' => $validated['book_id'],
             'issued_by' => auth()->id(),
             'borrow_date' => now(),
             'due_date' => $validated['due_date'],
-            'status' => 'borrowed',
+            'status' => Borrowing::STATUS_BORROWED,
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        // Decrease available copies
+        // Kurangi stok buku
         $book->decrementAvailable();
 
         return redirect()->route('librarian.borrowings.index')
             ->with('status', 'Peminjaman berhasil dicatat.');
     }
 
+    /**
+     * Tampilkan detail peminjaman.
+     */
     public function show(Borrowing $borrowing): View
     {
         $borrowing->load(['member.user', 'book', 'issuedBy', 'returnedTo', 'fine']);
         return view('librarian.borrowings.show', compact('borrowing'));
     }
 
+    /**
+     * Proses pengembalian buku.
+     */
     public function returnBook(Borrowing $borrowing): RedirectResponse
     {
-        if ($borrowing->status === 'returned') {
+        if ($borrowing->status === Borrowing::STATUS_RETURNED) {
             return back()->with('error', 'Buku sudah dikembalikan.');
         }
 
@@ -108,11 +130,11 @@ class BorrowingController extends Controller
     }
 
     /**
-     * Approve a pending borrow request.
+     * Setujui permintaan peminjaman.
      */
     public function approve(Request $request, Borrowing $borrowing): RedirectResponse
     {
-        if ($borrowing->status !== 'pending') {
+        if ($borrowing->status !== Borrowing::STATUS_PENDING) {
             return back()->with('error', 'Permintaan ini sudah diproses.');
         }
 
@@ -120,7 +142,7 @@ class BorrowingController extends Controller
             'loan_days' => ['nullable', 'integer', 'min:1', 'max:30'],
         ]);
 
-        $loanDays = $validated['loan_days'] ?? 14;
+        $loanDays = $validated['loan_days'] ?? Borrowing::DEFAULT_LOAN_DAYS;
 
         $borrowing->approve(auth()->id(), $loanDays);
 
@@ -128,11 +150,11 @@ class BorrowingController extends Controller
     }
 
     /**
-     * Reject a pending borrow request.
+     * Tolak permintaan peminjaman.
      */
     public function reject(Request $request, Borrowing $borrowing): RedirectResponse
     {
-        if ($borrowing->status !== 'pending') {
+        if ($borrowing->status !== Borrowing::STATUS_PENDING) {
             return back()->with('error', 'Permintaan ini sudah diproses.');
         }
 
@@ -145,4 +167,5 @@ class BorrowingController extends Controller
         return back()->with('status', 'Permintaan peminjaman ditolak.');
     }
 }
+
 

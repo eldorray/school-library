@@ -11,6 +11,13 @@ class Member extends Model
 {
     use HasFactory;
 
+    /*
+    |--------------------------------------------------------------------------
+    | Config Constants
+    |--------------------------------------------------------------------------
+    */
+    public const MAX_BORROW_LIMIT = 3;  // Maksimal buku yang bisa dipinjam
+
     protected $fillable = [
         'user_id',
         'member_id',
@@ -28,8 +35,14 @@ class Member extends Model
         'is_active' => 'boolean',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Get the user account of this member.
+     * Akun user dari member ini.
      */
     public function user(): BelongsTo
     {
@@ -37,7 +50,7 @@ class Member extends Model
     }
 
     /**
-     * Get all borrowings of this member.
+     * Semua peminjaman member ini.
      */
     public function borrowings(): HasMany
     {
@@ -45,26 +58,36 @@ class Member extends Model
     }
 
     /**
-     * Get all reservations of this member.
+     * Semua reservasi member ini.
      */
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Helper Methods
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Get active borrowings count.
+     * Hitung jumlah peminjaman aktif.
      */
     public function activeBorrowingsCount(): int
     {
-        return $this->borrowings()->where('status', 'borrowed')->count();
+        return $this->borrowings()
+            ->where('status', Borrowing::STATUS_BORROWED)
+            ->count();
     }
 
     /**
-     * Check if member can borrow more books.
+     * Cek apakah member bisa meminjam buku lagi.
+     * Member harus aktif dan belum mencapai batas pinjam.
      */
-    public function canBorrow(int $maxBooks = 3): bool
+    public function canBorrow(): bool
     {
-        return $this->is_active && $this->activeBorrowingsCount() < $maxBooks;
+        return $this->is_active 
+            && $this->activeBorrowingsCount() < self::MAX_BORROW_LIMIT;
     }
 }
