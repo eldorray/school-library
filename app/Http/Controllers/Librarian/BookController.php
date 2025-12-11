@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Librarian;
 
 use App\Http\Controllers\Controller;
+use App\Imports\BooksImport;
 use App\Models\Book;
 use App\Models\Category;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BookController extends Controller
 {
@@ -141,4 +144,97 @@ class BookController extends Controller
         return redirect()->route('librarian.books.index')
             ->with('status', 'Buku berhasil dihapus.');
     }
+
+    /**
+     * Bulk delete books (Admin only)
+     */
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:books,id'],
+        ]);
+
+        $skipped = 0;
+        $deleted = 0;
+
+        foreach ($validated['ids'] as $id) {
+            $book = Book::find($id);
+            
+            if ($book && $book->borrowings()->where('status', 'borrowed')->exists()) {
+                $skipped++;
+                continue;
+            }
+
+            if ($book) {
+                if ($book->cover_image) {
+                    Storage::disk('public')->delete($book->cover_image);
+                }
+                if ($book->pdf_file) {
+                    Storage::disk('public')->delete($book->pdf_file);
+                }
+                $book->delete();
+                $deleted++;
+            }
+        }
+
+        $message = "{$deleted} buku berhasil dihapus.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} buku dilewati karena sedang dipinjam.";
+        }
+
+        return redirect()->route('librarian.books.index')->with('status', $message);
+    }
+
+    /**
+     * Show the import form
+     */
+    public function showImportForm(): View
+    {
+        $categories = Category::all();
+        return view('librarian.books.import', compact('categories'));
+    }
+
+    /**
+     * Handle the Excel import
+     */
+    public function import(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'], // max 10MB
+        ]);
+
+        $import = new BooksImport();
+        $import->import($request->file('file'));
+
+        $failures = $import->failures();
+        $successCount = $import->getSuccessCount();
+
+        if ($failures->isNotEmpty()) {
+            $errorMessages = [];
+            foreach ($failures as $failure) {
+                $row = $failure->row();
+                $errors = implode(', ', $failure->errors());
+                $errorMessages[] = "Baris {$row}: {$errors}";
+            }
+
+            return redirect()->route('librarian.books.import')
+                ->with('status', "{$successCount} buku berhasil diimport.")
+                ->with('import_errors', $errorMessages);
+        }
+
+        return redirect()->route('librarian.books.index')
+            ->with('status', "{$successCount} buku berhasil diimport dari Excel.");
+    }
+
+    /**
+     * Download import template
+     */
+    public function downloadTemplate(): BinaryFileResponse
+    {
+        $templatePath = storage_path('app/templates/book_import_template.xlsx');
+        
+        return response()->download($templatePath, 'template_import_buku.xlsx');
+    }
 }
+

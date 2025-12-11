@@ -36,12 +36,53 @@
     </div>
 
     <!-- Table -->
-    <div
+    <div x-data="{
+        selectedMembers: [],
+        selectAll: false,
+        toggleSelectAll() {
+            this.selectAll = !this.selectAll;
+            if (this.selectAll) {
+                this.selectedMembers = [...document.querySelectorAll('input[name=\'member_ids[]\']')].map(el => el.value);
+            } else {
+                this.selectedMembers = [];
+            }
+        }
+    }"
         class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+
+        <!-- Bulk Delete Bar (Admin Only) -->
+        @if (auth()->user()->isAdmin())
+            <div x-show="selectedMembers.length > 0" x-transition
+                class="px-6 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 flex items-center justify-between">
+                <span class="text-sm text-red-700 dark:text-red-300">
+                    <span x-text="selectedMembers.length"></span> {{ __('anggota dipilih') }}
+                </span>
+                <form action="{{ route('admin.members.bulk-destroy') }}" method="POST"
+                    onsubmit="return confirm('Yakin ingin menghapus anggota yang dipilih?')">
+                    @csrf
+                    @method('DELETE')
+                    <template x-for="id in selectedMembers" :key="id">
+                        <input type="hidden" name="ids[]" :value="id">
+                    </template>
+                    <button type="submit"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
+                        <x-icon name="fas-trash" class="w-4 h-4" />
+                        {{ __('Hapus Terpilih') }}
+                    </button>
+                </form>
+            </div>
+        @endif
+
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead>
                     <tr class="bg-gray-50 dark:bg-gray-700/50">
+                        @if (auth()->user()->isAdmin())
+                            <th class="px-6 py-4 text-center">
+                                <input type="checkbox" @click="toggleSelectAll()" :checked="selectAll"
+                                    class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-amber-600 focus:ring-amber-500">
+                            </th>
+                        @endif
                         <th
                             class="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                             {{ __('Anggota') }}</th>
@@ -65,6 +106,13 @@
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                     @forelse($members as $member)
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                            @if (auth()->user()->isAdmin())
+                                <td class="px-6 py-4 text-center">
+                                    <input type="checkbox" name="member_ids[]" value="{{ $member->id }}"
+                                        x-model="selectedMembers"
+                                        class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-amber-600 focus:ring-amber-500">
+                                </td>
+                            @endif
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
                                     <div
@@ -109,7 +157,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-12 text-center">
+                            <td colspan="{{ auth()->user()->isAdmin() ? 7 : 6 }}" class="px-6 py-12 text-center">
                                 <x-icon name="fas-id-card" class="w-12 h-12 mx-auto mb-3 text-gray-400" />
                                 <p class="text-gray-500 dark:text-gray-400">{{ __('Belum ada anggota terdaftar') }}</p>
                             </td>

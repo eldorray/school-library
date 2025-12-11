@@ -34,11 +34,21 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [Admin\DashboardController::class, 'index'])->name('dashboard');
     Route::resource('users', Admin\UserController::class);
+    
+    // Bulk Delete Routes (Admin only)
+    Route::delete('/books/bulk-delete', [Librarian\BookController::class, 'bulkDestroy'])->name('books.bulk-destroy');
+    Route::delete('/members/bulk-delete', [Librarian\MemberController::class, 'bulkDestroy'])->name('members.bulk-destroy');
 });
 
 // Librarian Routes
 Route::middleware(['auth', 'role:librarian,admin'])->prefix('librarian')->name('librarian.')->group(function () {
     Route::get('/dashboard', [Librarian\DashboardController::class, 'index'])->name('dashboard');
+    
+    // Book Import Routes (must be before resource)
+    Route::get('/books/import', [Librarian\BookController::class, 'showImportForm'])->name('books.import');
+    Route::post('/books/import', [Librarian\BookController::class, 'import'])->name('books.import.store');
+    Route::get('/books/import/template', [Librarian\BookController::class, 'downloadTemplate'])->name('books.import.template');
+    
     Route::resource('books', Librarian\BookController::class);
     Route::resource('categories', Librarian\CategoryController::class)->except(['create', 'show', 'edit']);
     Route::resource('members', Librarian\MemberController::class);

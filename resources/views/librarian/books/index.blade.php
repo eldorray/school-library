@@ -4,11 +4,18 @@
             <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ __('Kelola Buku') }}</h1>
             <p class="text-gray-600 dark:text-gray-400 mt-1">{{ __('Kelola koleksi buku perpustakaan') }}</p>
         </div>
-        <a href="{{ route('librarian.books.create') }}"
-            class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-medium hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl">
-            <x-icon name="fas-plus" class="w-4 h-4" />
-            {{ __('Tambah Buku') }}
-        </a>
+        <div class="flex items-center gap-3">
+            <a href="{{ route('librarian.books.import') }}"
+                class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-all duration-300 shadow-lg hover:shadow-xl">
+                <x-icon name="fas-file-excel" class="w-4 h-4" />
+                {{ __('Import Excel') }}
+            </a>
+            <a href="{{ route('librarian.books.create') }}"
+                class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-medium hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl">
+                <x-icon name="fas-plus" class="w-4 h-4" />
+                {{ __('Tambah Buku') }}
+            </a>
+        </div>
     </div>
 
     <!-- Filters -->
@@ -42,12 +49,53 @@
     </div>
 
     <!-- Books Table -->
-    <div
+    <div x-data="{
+        selectedBooks: [],
+        selectAll: false,
+        toggleSelectAll() {
+            this.selectAll = !this.selectAll;
+            if (this.selectAll) {
+                this.selectedBooks = [...document.querySelectorAll('input[name=\'book_ids[]\']')].map(el => el.value);
+            } else {
+                this.selectedBooks = [];
+            }
+        }
+    }"
         class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
+
+        <!-- Bulk Delete Bar (Admin Only) -->
+        @if (auth()->user()->isAdmin())
+            <div x-show="selectedBooks.length > 0" x-transition
+                class="px-6 py-3 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 flex items-center justify-between">
+                <span class="text-sm text-red-700 dark:text-red-300">
+                    <span x-text="selectedBooks.length"></span> {{ __('buku dipilih') }}
+                </span>
+                <form action="{{ route('admin.books.bulk-destroy') }}" method="POST"
+                    onsubmit="return confirm('Yakin ingin menghapus buku yang dipilih?')">
+                    @csrf
+                    @method('DELETE')
+                    <template x-for="id in selectedBooks" :key="id">
+                        <input type="hidden" name="ids[]" :value="id">
+                    </template>
+                    <button type="submit"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
+                        <x-icon name="fas-trash" class="w-4 h-4" />
+                        {{ __('Hapus Terpilih') }}
+                    </button>
+                </form>
+            </div>
+        @endif
+
         <div class="overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
                     <tr>
+                        @if (auth()->user()->isAdmin())
+                            <th class="px-6 py-4 text-center">
+                                <input type="checkbox" @click="toggleSelectAll()" :checked="selectAll"
+                                    class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                            </th>
+                        @endif
                         <th
                             class="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                             {{ __('Cover') }}
@@ -69,6 +117,13 @@
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                     @forelse($books as $book)
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                            @if (auth()->user()->isAdmin())
+                                <td class="px-6 py-4 text-center">
+                                    <input type="checkbox" name="book_ids[]" value="{{ $book->id }}"
+                                        x-model="selectedBooks"
+                                        class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                                </td>
+                            @endif
                             <!-- Cover -->
                             <td class="px-6 py-4">
                                 <div
@@ -158,7 +213,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="px-6 py-12 text-center">
+                            <td colspan="{{ auth()->user()->isAdmin() ? 5 : 4 }}" class="px-6 py-12 text-center">
                                 <x-icon name="fas-book" class="w-16 h-16 mx-auto mb-4 text-gray-400" />
                                 <p class="text-gray-500 dark:text-gray-400 text-lg">{{ __('Belum ada buku') }}</p>
                                 <a href="{{ route('librarian.books.create') }}"

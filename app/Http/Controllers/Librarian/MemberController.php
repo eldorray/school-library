@@ -141,4 +141,39 @@ class MemberController extends Controller
         return redirect()->route('librarian.members.index')
             ->with('status', 'Anggota berhasil dihapus.');
     }
+
+    /**
+     * Bulk delete members (Admin only)
+     */
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:members,id'],
+        ]);
+
+        $skipped = 0;
+        $deleted = 0;
+
+        foreach ($validated['ids'] as $id) {
+            $member = Member::find($id);
+            
+            if ($member && $member->borrowings()->where('status', 'borrowed')->exists()) {
+                $skipped++;
+                continue;
+            }
+
+            if ($member) {
+                $member->user->delete(); // Will cascade delete member
+                $deleted++;
+            }
+        }
+
+        $message = "{$deleted} anggota berhasil dihapus.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} anggota dilewati karena memiliki peminjaman aktif.";
+        }
+
+        return redirect()->route('librarian.members.index')->with('status', $message);
+    }
 }
