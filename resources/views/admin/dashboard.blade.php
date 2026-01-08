@@ -227,7 +227,7 @@
                                     {{ $borrowing->book->title }}</p>
                                 <p class="text-sm text-gray-500 dark:text-gray-400">
                                     {{ $borrowing->member->user->name }} •
-                                    {{ $borrowing->borrow_date->format('d M Y') }}
+                                    {{ $borrowing->borrow_date?->format('d M Y') ?? '-' }}
                                 </p>
                             </div>
                             <span
