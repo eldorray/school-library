@@ -215,8 +215,15 @@
                 scale
             });
 
-            canvas.height = scaledViewport.height;
-            canvas.width = scaledViewport.width;
+            // Fix blurry rendering on high-DPI mobile screens
+            const pixelRatio = window.devicePixelRatio || 1;
+            canvas.width = scaledViewport.width * pixelRatio;
+            canvas.height = scaledViewport.height * pixelRatio;
+            canvas.style.width = scaledViewport.width + 'px';
+            canvas.style.height = scaledViewport.height + 'px';
+
+            // Reset transform and scale for high-DPI
+            ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
             await page.render({
                 canvasContext: ctx,
